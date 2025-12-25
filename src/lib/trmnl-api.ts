@@ -48,6 +48,7 @@ const STORAGE_KEYS = {
   refreshRate: "trmnl_refreshRate",
   retryCount: "trmnl_retryCount",
   retryAfter: "trmnl_retryAfter",
+  firstSetupComplete: "trmnl_firstSetupComplete",
 };
 
 // Helper functions for localStorage
@@ -373,7 +374,17 @@ export async function fetchImage(forceRefresh = false): Promise<string | null> {
     return null;
   }
 
-  const API_URL = getApiUrl(environment);
+  const deviceId = selectedDevice?.id || "unknown";
+  const isFirstSetup = !hasCompletedFirstSetup(deviceId);
+
+  // Use /api/display for first-time setup to generate screen, otherwise use /api/current_screen
+  const API_URL = isFirstSetup
+    ? `${getBaseUrl(environment)}/api/display`
+    : getApiUrl(environment);
+
+  console.log(
+    `Fetching image for device ${deviceId} (first setup: ${isFirstSetup})`
+  );
 
   try {
     // Fetch the current screen metadata
@@ -461,6 +472,12 @@ export async function fetchImage(forceRefresh = false): Promise<string | null> {
       retryAfter: null,
     });
 
+    // Mark first setup as complete after successful fetch
+    if (isFirstSetup) {
+      markFirstSetupComplete(deviceId);
+      console.log(`First setup completed for device ${deviceId}`);
+    }
+
     return imageDataUrl;
   } catch (error) {
     console.error("Error fetching image:", error);
@@ -491,6 +508,25 @@ export function selectDevice(device: Device): void {
 // Set the environment
 export function setEnvironment(environment: Environment): void {
   updateState({ environment });
+}
+
+// Check if device has completed first setup
+function hasCompletedFirstSetup(deviceId: string): boolean {
+  const firstSetupMap = getStorageItem<Record<string, boolean>>(
+    STORAGE_KEYS.firstSetupComplete,
+    {}
+  );
+  return firstSetupMap[deviceId] === true;
+}
+
+// Mark device as having completed first setup
+function markFirstSetupComplete(deviceId: string): void {
+  const firstSetupMap = getStorageItem<Record<string, boolean>>(
+    STORAGE_KEYS.firstSetupComplete,
+    {}
+  );
+  firstSetupMap[deviceId] = true;
+  setStorageItem(STORAGE_KEYS.firstSetupComplete, firstSetupMap);
 }
 
 // Format time remaining for countdown display
