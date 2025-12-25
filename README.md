@@ -17,7 +17,7 @@ A web application that displays your TRMNL device screen in your browser. This i
 ### Prerequisites
 
 - A TRMNL account with either a physical device or a [BYOD (Bring Your Own Device)](https://shop.usetrmnl.com/products/byod) license
-- Node.js 18+ installed
+- Bun installed
 
 ### Installation
 
@@ -31,13 +31,13 @@ A web application that displays your TRMNL device screen in your browser. This i
 2. Install dependencies:
 
    ```bash
-   npm install
+   bun install
    ```
 
 3. Start the development server:
 
    ```bash
-   npm run dev
+   bun run dev
    ```
 
 4. Open http://localhost:5173 in your browser
@@ -80,10 +80,10 @@ This web app replicates the functionality of the TRMNL Chrome Extension:
 
 ### Available Scripts
 
-- `npm run dev` - Start development server
-- `npm run build` - Build for production
-- `npm run preview` - Preview production build
-- `npm run lint` - Run ESLint
+- `bun run dev` - Start development server
+- `bun run build` - Build for production
+- `bun run preview` - Preview production build
+- `bun run lint` - Run ESLint
 
 ### Tech Stack
 
@@ -91,17 +91,3 @@ This web app replicates the functionality of the TRMNL Chrome Extension:
 - **TypeScript** - Type safety
 - **Vite** - Build tool
 - **localStorage** - State persistence
-
-## Differences from Chrome Extension
-
-| Feature                 | Chrome Extension    | Web App             |
-| ----------------------- | ------------------- | ------------------- |
-| New Tab Override        | ✅                  | ❌                  |
-| Cookie Auth for Devices | ✅                  | ⚠️ Limited (CORS)   |
-| Manual API Key Entry    | ❌                  | ✅                  |
-| Background Refresh      | ✅ (Service Worker) | ✅ (While tab open) |
-| Cross-browser           | Chrome/Firefox      | Any modern browser  |
-
-## License
-
-This project is inspired by the official [TRMNL Chrome Extension](https://github.com/usetrmnl/trmnl-chrome).
