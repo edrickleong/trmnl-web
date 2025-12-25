@@ -1,42 +1,425 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+/* TRMNL Web App Styles */
+
+/* Container */
+.trmnl-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: #1a1a1a;
+  padding: 20px;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+/* Display wrapper */
+.trmnl-display {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
+/* Image container - fixed size matching TRMNL device */
+.trmnl-image-container {
+  width: 800px;
+  height: 480px;
+  max-width: calc(100vw - 40px);
+  max-height: calc(100vh - 120px);
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Main image */
+.trmnl-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  transition: filter 0.3s ease;
+  /* Light mode: simulate e-ink with slight sepia */
+  filter: sepia(20%) contrast(0.9);
+}
+
+.trmnl-image:hover {
+  filter: sepia(10%) contrast(1);
+}
+
+/* Dark mode image adjustments */
+@media (prefers-color-scheme: dark) {
+  .trmnl-image {
+    filter: invert() brightness(0.65) sepia(45%) contrast(0.75);
   }
+
+  .trmnl-image:hover {
+    filter: invert() brightness(0.75) sepia(35%) contrast(0.85);
+  }
+}
+
+/* Loading state */
+.trmnl-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: #666;
+}
+
+.trmnl-loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #ddd;
+  border-top-color: #333;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
   to {
     transform: rotate(360deg);
   }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
+/* No image state */
+.trmnl-no-image {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: #666;
+}
+
+/* Info overlay */
+.trmnl-info-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 800px;
+  padding: 12px 16px;
+  margin-top: 12px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  backdrop-filter: blur(10px);
+}
+
+.trmnl-info-left,
+.trmnl-info-center,
+.trmnl-info-right {
+  display: flex;
+  align-items: center;
+}
+
+.trmnl-info-left {
+  flex: 1;
+}
+
+.trmnl-info-center {
+  flex: 2;
+  justify-content: center;
+}
+
+.trmnl-info-right {
+  flex: 1;
+  justify-content: flex-end;
+}
+
+/* Device name/selector */
+.trmnl-device-name {
+  font-size: 14px;
+  color: #999;
+}
+
+.trmnl-device-select {
+  background-color: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 14px;
+  color: #ccc;
+  cursor: pointer;
+  outline: none;
+}
+
+.trmnl-device-select:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.trmnl-device-select option {
+  background-color: #333;
+  color: #fff;
+}
+
+/* Countdown */
+.trmnl-countdown {
+  font-size: 14px;
+  color: #999;
+}
+
+.trmnl-countdown strong {
+  color: #ccc;
+  font-family: monospace;
+}
+
+/* Buttons */
+.trmnl-button {
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 14px;
+  color: #ccc;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.trmnl-button:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.trmnl-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.trmnl-button-primary {
+  background-color: #4a9eff;
+  border-color: #4a9eff;
+  color: #fff;
+}
+
+.trmnl-button-primary:hover:not(:disabled) {
+  background-color: #3a8eef;
+  border-color: #3a8eef;
+}
+
+.trmnl-button-small {
+  padding: 4px 12px;
+  font-size: 16px;
+  min-width: 36px;
+}
+
+.trmnl-button-group {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+/* Error container */
+.trmnl-error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  max-width: 500px;
+  text-align: center;
+}
+
+.trmnl-error-content h2 {
+  margin: 0 0 16px;
+  color: #fff;
+  font-size: 24px;
+}
+
+.trmnl-error-content p {
+  margin: 0 0 12px;
+  color: #999;
+  line-height: 1.6;
+}
+
+.trmnl-note {
+  font-size: 13px;
+  color: #777;
+}
+
+.trmnl-note a {
+  color: #4a9eff;
+}
+
+.trmnl-error-message {
+  color: #ff6b6b;
+  font-size: 13px;
+  margin-top: 16px;
+}
+
+/* Toast notification */
+.trmnl-toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  z-index: 1000;
+  animation: slideUp 0.3s ease;
+}
+
+.trmnl-toast-error {
+  background-color: rgba(255, 107, 107, 0.9);
+  color: #fff;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
   }
 }
 
-.card {
-  padding: 2em;
+/* Responsive adjustments */
+@media (max-width: 840px) {
+  .trmnl-image-container {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 800 / 480;
+  }
+
+  .trmnl-info-overlay {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .trmnl-info-left,
+  .trmnl-info-center,
+  .trmnl-info-right {
+    flex: none;
+  }
+
+  .trmnl-info-center {
+    order: 3;
+    width: 100%;
+    justify-content: center;
+  }
 }
 
-.read-the-docs {
-  color: #888;
+/* Input styles */
+.trmnl-input {
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: #fff;
+  flex: 1;
+  min-width: 200px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.trmnl-input:focus {
+  border-color: #4a9eff;
+}
+
+.trmnl-input::placeholder {
+  color: #666;
+}
+
+.trmnl-input-group {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  max-width: 400px;
+}
+
+/* Setup section */
+.trmnl-setup-section {
+  margin: 16px 0;
+}
+
+.trmnl-setup-section h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  color: #ccc;
+}
+
+/* Divider */
+.trmnl-divider {
+  display: flex;
+  align-items: center;
+  margin: 24px 0;
+  color: #666;
+}
+
+.trmnl-divider::before,
+.trmnl-divider::after {
+  content: "";
+  flex: 1;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.trmnl-divider span {
+  padding: 0 16px;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+/* Settings panel */
+.trmnl-settings-panel {
+  position: absolute;
+  top: calc(100% + 20px);
+  right: 0;
+  width: 320px;
+  max-width: calc(100vw - 40px);
+  background-color: #252525;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 20px;
+  z-index: 100;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.trmnl-settings-panel h3 {
+  margin: 0 0 16px;
+  font-size: 16px;
+  color: #fff;
+}
+
+.trmnl-settings-section {
+  margin-bottom: 16px;
+}
+
+.trmnl-settings-section label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: #999;
+}
+
+.trmnl-settings-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Danger button */
+.trmnl-button-danger {
+  background-color: rgba(255, 107, 107, 0.2);
+  border-color: rgba(255, 107, 107, 0.4);
+  color: #ff6b6b;
+}
+
+.trmnl-button-danger:hover:not(:disabled) {
+  background-color: rgba(255, 107, 107, 0.3);
+  border-color: rgba(255, 107, 107, 0.6);
+}
+
+/* Right buttons group */
+.trmnl-info-right {
+  display: flex;
+  gap: 8px;
 }

@@ -1,75 +1,107 @@
-# React + TypeScript + Vite
+# TRMNL Web
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A web application that displays your TRMNL device screen in your browser. This is a web-based alternative to the [TRMNL Chrome Extension](https://github.com/usetrmnl/trmnl-chrome).
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Display TRMNL Screen**: View your TRMNL device display directly in your browser
+- **Auto Refresh**: Automatically fetches new images at the interval set by your device (default: 30 seconds)
+- **Countdown Timer**: Shows time until next refresh
+- **Manual Refresh**: Force refresh the display at any time
+- **Multi-Device Support**: Switch between multiple TRMNL devices (if you have more than one)
+- **Persistent Storage**: Your settings and cached image are stored in localStorage
+- **Dark/Light Mode**: E-ink display filters adapt to your system preference
 
-## React Compiler
+## Getting Started
 
-The React Compiler is enabled on this template. See [this documentation](https://react.dev/learn/react-compiler) for more information.
+### Prerequisites
 
-Note: This will impact Vite dev & build performances.
+- A TRMNL account with either a physical device or a [BYOD (Bring Your Own Device)](https://shop.usetrmnl.com/products/byod) license
+- Node.js 18+ installed
 
-## Expanding the ESLint configuration
+### Installation
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+1. Clone this repository:
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+   ```bash
+   git clone <your-repo-url>
+   cd trmnl-web
+   ```
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+2. Install dependencies:
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+   ```bash
+   npm install
+   ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+3. Start the development server:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+   ```bash
+   npm run dev
+   ```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+4. Open http://localhost:5173 in your browser
+
+### Setup
+
+1. **Get Your API Key**:
+
+   - Log in to [usetrmnl.com](https://usetrmnl.com)
+   - Go to your Dashboard → Device Settings
+   - Copy your device's API key
+
+2. **Enter the API Key**:
+
+   - Paste your API key in the input field on the welcome screen
+   - Click "Connect"
+
+3. **View Your Display**:
+   - Your TRMNL device screen will load
+   - The display auto-refreshes based on your device settings
+
+## How It Works
+
+This web app replicates the functionality of the TRMNL Chrome Extension:
+
+1. **API Communication**: Fetches device images from the TRMNL API (`/api/current_screen`) using your device's API key
+2. **Image Caching**: Converts images to base64 data URLs and stores them in localStorage for instant loading
+3. **Smart Refresh**: Compares image URLs to skip re-downloading unchanged images
+4. **Error Handling**: Implements exponential backoff for rate limiting and network errors
+
+### API Endpoints Used
+
+| Endpoint                                  | Purpose                                    |
+| ----------------------------------------- | ------------------------------------------ |
+| `https://usetrmnl.com/api/current_screen` | Fetches the current screen image metadata  |
+| `https://usetrmnl.com/devices.json`       | Fetches device list (requires cookie auth) |
+| `https://usetrmnl.com/login`              | Authentication page                        |
+
+## Development
+
+### Available Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build
+- `npm run lint` - Run ESLint
+
+### Tech Stack
+
+- **React 19** - UI framework
+- **TypeScript** - Type safety
+- **Vite** - Build tool
+- **localStorage** - State persistence
+
+## Differences from Chrome Extension
+
+| Feature                 | Chrome Extension    | Web App             |
+| ----------------------- | ------------------- | ------------------- |
+| New Tab Override        | ✅                  | ❌                  |
+| Cookie Auth for Devices | ✅                  | ⚠️ Limited (CORS)   |
+| Manual API Key Entry    | ❌                  | ✅                  |
+| Background Refresh      | ✅ (Service Worker) | ✅ (While tab open) |
+| Cross-browser           | Chrome/Firefox      | Any modern browser  |
+
+## License
+
+This project is inspired by the official [TRMNL Chrome Extension](https://github.com/usetrmnl/trmnl-chrome).
