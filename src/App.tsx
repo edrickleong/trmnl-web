@@ -11,9 +11,7 @@ function App() {
     countdown,
     forceRefresh,
     nextScreen,
-    previousScreen,
     changeDevice,
-    openLogin,
     loadDevices,
     saveManualApiKey,
   } = useTrmnl();
