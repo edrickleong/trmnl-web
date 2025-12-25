@@ -1,6 +1,7 @@
+import { RotateCcw, Settings, SkipForward } from "lucide-react";
 import { useState } from "react";
-import { useTrmnl } from "./hooks/useTrmnl";
 import "./App.css";
+import { useTrmnl } from "./hooks/useTrmnl";
 
 function App() {
   const {
@@ -9,6 +10,8 @@ function App() {
     error,
     countdown,
     forceRefresh,
+    nextScreen,
+    previousScreen,
     changeDevice,
     openLogin,
     loadDevices,
@@ -60,7 +63,7 @@ function App() {
                 />
                 <button
                   onClick={handleSaveApiKey}
-                  className="trmnl-button trmnl-button-primary"
+                  className="trmnl-button"
                   disabled={!apiKeyInput.trim()}
                 >
                   Connect
@@ -68,7 +71,7 @@ function App() {
               </div>
             </div>
 
-            <div className="trmnl-divider">
+            {/* <div className="trmnl-divider">
               <span>or</span>
             </div>
 
@@ -85,7 +88,7 @@ function App() {
                   Load Devices
                 </button>
               </div>
-            </div>
+            </div> */}
 
             {error && <p className="trmnl-error-message">{error}</p>}
           </div>
@@ -162,19 +165,54 @@ function App() {
 
           <div className="trmnl-info-right">
             <button
+              onClick={nextScreen}
+              disabled={isLoading}
+              className="trmnl-button trmnl-button-small"
+              title="Next screen"
+            >
+              <SkipForward size={18} />
+            </button>
+            <button
               onClick={forceRefresh}
               disabled={isLoading}
               className="trmnl-button trmnl-button-small"
               title="Refresh now"
             >
-              {isLoading ? "..." : "↻"}
+              <RotateCcw
+                size={18}
+                className={isLoading ? "trmnl-icon-spin" : ""}
+              />
             </button>
+            {/* <div className="trmnl-tooltip-container">
+              <button
+                onClick={previousScreen}
+                disabled={isLoading}
+                className="trmnl-button trmnl-button-small"
+              >
+                <Zap size={18} />
+              </button>
+              <div className="trmnl-tooltip">
+                <strong>Special Function</strong>
+                <p>Triggers your device's configured special function (e.g., Previous Screen, Identify, etc.).</p>
+                <div className="trmnl-tooltip-divider"></div>
+                <p className="trmnl-tooltip-label">Setup Required:</p>
+                <ol>
+                  <li>Go to <a href="https://usetrmnl.com/dashboard" target="_blank" rel="noopener noreferrer">Dashboard</a></li>
+                  <li>Open device settings</li>
+                  <li>Configure your desired Special Function</li>
+                  <li>Save settings</li>
+                </ol>
+                <a href="https://help.usetrmnl.com/en/articles/9672080-special-functions" target="_blank" rel="noopener noreferrer" className="trmnl-tooltip-link">
+                  Learn more →
+                </a>
+              </div>
+            </div> */}
             <button
               onClick={() => setShowSettings(!showSettings)}
               className="trmnl-button trmnl-button-small"
               title="Settings"
             >
-              ⚙
+              <Settings size={18} />
             </button>
           </div>
         </div>
@@ -197,7 +235,7 @@ function App() {
                 />
                 <button
                   onClick={handleSaveApiKey}
-                  className="trmnl-button trmnl-button-primary"
+                  className="trmnl-button"
                   disabled={!apiKeyInput.trim()}
                 >
                   Save

@@ -84,6 +84,11 @@
   }
 }
 
+/* Icon spin animation */
+.trmnl-icon-spin {
+  animation: spin 1s linear infinite;
+}
+
 /* No image state */
 .trmnl-no-image {
   display: flex;
@@ -188,20 +193,25 @@
 }
 
 .trmnl-button-primary {
-  background-color: #4a9eff;
-  border-color: #4a9eff;
-  color: #fff;
+  background-color: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #ccc;
 }
 
 .trmnl-button-primary:hover:not(:disabled) {
-  background-color: #3a8eef;
-  border-color: #3a8eef;
+  background-color: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
 .trmnl-button-small {
-  padding: 4px 12px;
+  padding: 6px;
   font-size: 16px;
+  width: 36px;
+  height: 36px;
   min-width: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .trmnl-button-group {
@@ -422,4 +432,127 @@
 .trmnl-info-right {
   display: flex;
   gap: 8px;
+}
+
+/* Tooltip */
+.trmnl-tooltip-container {
+  position: relative;
+  display: inline-block;
+}
+
+.trmnl-tooltip {
+  visibility: hidden;
+  opacity: 0;
+  position: absolute;
+  bottom: calc(100% + 12px);
+  right: 0;
+  width: 320px;
+  background-color: #2a2a2a;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  z-index: 1000;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #ccc;
+}
+
+.trmnl-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  right: 12px;
+  border: 6px solid transparent;
+  border-top-color: #2a2a2a;
+}
+
+.trmnl-tooltip-container:hover .trmnl-tooltip {
+  visibility: visible;
+  opacity: 1;
+}
+
+.trmnl-tooltip strong {
+  display: block;
+  color: #fff;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.trmnl-tooltip p {
+  margin: 0 0 8px;
+  color: #999;
+}
+
+.trmnl-tooltip-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.1);
+  margin: 12px 0;
+}
+
+.trmnl-tooltip-label {
+  font-weight: 600;
+  color: #ccc !important;
+  margin-bottom: 8px !important;
+}
+
+.trmnl-tooltip ol {
+  margin: 8px 0;
+  padding-left: 20px;
+  color: #aaa;
+}
+
+.trmnl-tooltip ol li {
+  margin: 4px 0;
+}
+
+.trmnl-tooltip a {
+  color: #4a9eff;
+  text-decoration: none;
+}
+
+.trmnl-tooltip a:hover {
+  text-decoration: underline;
+}
+
+.trmnl-tooltip-link {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Help panel */
+.trmnl-help-steps {
+  margin: 12px 0;
+  padding-left: 20px;
+  color: #ccc;
+  line-height: 1.8;
+}
+
+.trmnl-help-steps li {
+  margin: 8px 0;
+}
+
+.trmnl-settings-section h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #fff;
+}
+
+.trmnl-settings-section p {
+  font-size: 13px;
+  color: #999;
+  line-height: 1.6;
+  margin: 8px 0;
+}
+
+.trmnl-settings-section a {
+  color: #4a9eff;
+  text-decoration: none;
+}
+
+.trmnl-settings-section a:hover {
+  text-decoration: underline;
 }

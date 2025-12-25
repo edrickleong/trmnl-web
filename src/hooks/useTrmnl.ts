@@ -3,6 +3,8 @@ import {
   getState,
   fetchDevices,
   fetchImage,
+  fetchNextScreen,
+  triggerSpecialFunction,
   selectDevice,
   setEnvironment,
   formatTimeRemaining,
@@ -82,6 +84,24 @@ export function useTrmnl() {
         return;
       }
 
+      // Don't fetch if we're still within the wait period (unless force refresh)
+      if (!forceRefresh) {
+        const currentState = getState();
+        const now = Date.now();
+
+        // If retryAfter is set and we're still in backoff period, skip
+        if (currentState.retryAfter && now < currentState.retryAfter) {
+          console.log("In retry backoff period, skipping fetch");
+          return;
+        }
+
+        // If nextFetch is in the future, skip (already scheduled)
+        if (currentState.nextFetch && now < currentState.nextFetch) {
+          console.log("Next fetch scheduled, skipping premature fetch");
+          return;
+        }
+      }
+
       fetchInProgressRef.current = true;
       setIsLoading(true);
       setError(null);
@@ -109,6 +129,56 @@ export function useTrmnl() {
   const forceRefresh = useCallback(async () => {
     await loadImage(true);
   }, [loadImage]);
+
+  // Go to next screen
+  const nextScreen = useCallback(async () => {
+    if (fetchInProgressRef.current) {
+      console.log("Fetch already in progress, skipping");
+      return;
+    }
+
+    fetchInProgressRef.current = true;
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const imageUrl = await fetchNextScreen();
+      if (!imageUrl) {
+        setError("Failed to load next screen. Please check your API key.");
+      }
+      refreshState();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to load next screen"
+      );
+    } finally {
+      setIsLoading(false);
+      setTimeout(() => {
+        fetchInProgressRef.current = false;
+      }, 1000);
+    }
+  }, [refreshState]);
+
+  // Go to previous screen (special function)
+  const previousScreen = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const success = await triggerSpecialFunction();
+      if (!success) {
+        setError(
+          "Failed to trigger previous screen. Ensure special function is configured."
+        );
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to trigger previous screen"
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   // Update countdown display
   const updateCountdown = useCallback(() => {
@@ -250,6 +320,8 @@ export function useTrmnl() {
     loadDevices,
     loadImage,
     forceRefresh,
+    nextScreen,
+    previousScreen,
     changeDevice,
     changeEnvironment,
     saveManualApiKey,

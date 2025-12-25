@@ -213,6 +213,147 @@ async function blobToDataUrl(blob: Blob): Promise<string> {
   });
 }
 
+// Fetch the next screen image (triggers screen update on device)
+export async function fetchNextScreen(): Promise<string | null> {
+  const state = getState();
+  const { environment, selectedDevice, retryAfter, retryCount } = state;
+
+  // Check if we're in a retry backoff period
+  if (retryAfter && Date.now() < retryAfter) {
+    console.log("In retry backoff period, skipping fetch");
+    return null;
+  }
+
+  // Get API key from selected device
+  const apiKey = selectedDevice?.api_key;
+  if (!apiKey) {
+    console.log("No API key available");
+    return null;
+  }
+
+  const API_URL = `${getBaseUrl(environment)}/api/display`;
+
+  try {
+    // Fetch the next screen
+    const response = await fetch(API_URL, {
+      headers: {
+        "Access-Token": apiKey,
+        "Cache-Control": "no-cache",
+      },
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      console.log("API key unauthorized");
+      updateState({ retryCount: 0, retryAfter: null });
+      return null;
+    }
+
+    if (response.status === 429) {
+      const newRetryCount = retryCount + 1;
+      const backoffMs = Math.min(1000 * Math.pow(2, newRetryCount), 300000);
+      const retryAfterTime = Date.now() + backoffMs;
+
+      console.log(`Rate limited, backing off for ${backoffMs}ms`);
+      updateState({
+        retryCount: newRetryCount,
+        retryAfter: retryAfterTime,
+      });
+      return null;
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const imageUrl = data.image_url;
+    const filename = data.filename || "display.jpg";
+    const refreshRate = data.refresh_rate || DEFAULT_REFRESH_RATE;
+    const currentTime = Date.now();
+
+    // Fetch the actual image
+    const imageResponse = await fetch(imageUrl);
+    if (!imageResponse.ok) {
+      throw new Error(`Failed to fetch image: ${imageResponse.status}`);
+    }
+
+    const imageBlob = await imageResponse.blob();
+    const imageDataUrl = await blobToDataUrl(imageBlob);
+
+    // Calculate next fetch time
+    const nextFetch = currentTime + refreshRate * 1000;
+
+    // Store the image and metadata
+    updateState({
+      currentImage: {
+        url: imageDataUrl,
+        originalUrl: imageUrl,
+        filename,
+        timestamp: currentTime,
+      },
+      lastFetch: currentTime,
+      nextFetch,
+      refreshRate,
+      retryCount: 0,
+      retryAfter: null,
+    });
+
+    return imageDataUrl;
+  } catch (error) {
+    console.error("Error fetching next screen:", error);
+
+    const newRetryCount = retryCount + 1;
+    const backoffMs = Math.min(1000 * Math.pow(2, newRetryCount), 300000);
+    const retryAfterTime = Date.now() + backoffMs;
+
+    updateState({
+      retryCount: newRetryCount,
+      retryAfter: retryAfterTime,
+    });
+    return null;
+  }
+}
+
+// Trigger special function (e.g., previous screen)
+export async function triggerSpecialFunction(): Promise<boolean> {
+  const state = getState();
+  const { environment, selectedDevice } = state;
+
+  // Get API key from selected device
+  const apiKey = selectedDevice?.api_key;
+  if (!apiKey) {
+    console.log("No API key available");
+    return false;
+  }
+
+  const API_URL = `${getBaseUrl(environment)}/api/display`;
+
+  try {
+    const response = await fetch(API_URL, {
+      headers: {
+        "Access-Token": apiKey,
+        "Special-Function": "true",
+        "Cache-Control": "no-cache",
+      },
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      console.log("API key unauthorized");
+      return false;
+    }
+
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status}`);
+    }
+
+    console.log("Special function triggered successfully");
+    return true;
+  } catch (error) {
+    console.error("Error triggering special function:", error);
+    return false;
+  }
+}
+
 // Fetch the current screen image
 export async function fetchImage(forceRefresh = false): Promise<string | null> {
   const state = getState();
