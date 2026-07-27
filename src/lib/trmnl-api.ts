@@ -22,7 +22,17 @@ export interface CurrentImage {
   url: string; // base64 data URL
   originalUrl: string; // CDN URL from API
   filename: string;
-  timestamp: number;
+  timestamp: number; // when we fetched it
+  renderedAt: number | null; // when the server rendered it, if it told us
+}
+
+// Why the last fetch failed. These need different responses from the user, so
+// they're kept distinct rather than collapsed into one message.
+export type FetchErrorKind = "unauthorized" | "rate-limited" | "network";
+
+export interface FetchError {
+  kind: FetchErrorKind;
+  at: number;
 }
 
 export interface TrmnlState {
@@ -35,7 +45,31 @@ export interface TrmnlState {
   refreshRate: number;
   retryCount: number;
   retryAfter: number | null;
+  // When true, the refresh timer pulls the next screen (/api/display) like a
+  // real device would, advancing the playlist. When false (default) it only
+  // mirrors whatever the device is currently showing (/api/current_screen).
+  advancePlaylist: boolean;
+  // Seconds between refreshes, overriding the server's refresh_rate. null
+  // means follow whatever the server asks for.
+  refreshOverride: number | null;
+  // True when the server answered but the device has no rendered screen to
+  // mirror yet. Advancing the playlist once is what produces one, but that's
+  // the user's call, so we surface it rather than doing it for them.
+  noScreenRendered: boolean;
+  // Why the most recent fetch failed, or null after a success.
+  lastError: FetchError | null;
 }
+
+// Aim just past the device's expected next render rather than exactly at it,
+// to allow for clock skew and render time.
+const SYNC_GRACE_MS = 5000;
+
+// Never poll more often than this, however far behind we think we are.
+const MIN_POLL_GAP_MS = 15000;
+
+// Selectable refresh intervals, in seconds. 0 is the "Auto" sentinel, i.e.
+// follow the server's refresh_rate.
+export const REFRESH_STEPS = [0, 30, 60, 120, 300, 600, 900, 1800, 3600];
 
 // Storage keys
 const STORAGE_KEYS = {
@@ -48,7 +82,11 @@ const STORAGE_KEYS = {
   refreshRate: "trmnl_refreshRate",
   retryCount: "trmnl_retryCount",
   retryAfter: "trmnl_retryAfter",
-  firstSetupComplete: "trmnl_firstSetupComplete",
+  advancePlaylist: "trmnl_advancePlaylist",
+  refreshOverride: "trmnl_refreshOverride",
+  noScreenRendered: "trmnl_noScreenRendered",
+  lastError: "trmnl_lastError",
+  theme: "trmnl_theme",
 };
 
 // Helper functions for localStorage
@@ -93,6 +131,19 @@ export function getState(): TrmnlState {
     ),
     retryCount: getStorageItem<number>(STORAGE_KEYS.retryCount, 0),
     retryAfter: getStorageItem<number | null>(STORAGE_KEYS.retryAfter, null),
+    advancePlaylist: getStorageItem<boolean>(
+      STORAGE_KEYS.advancePlaylist,
+      false
+    ),
+    refreshOverride: getStorageItem<number | null>(
+      STORAGE_KEYS.refreshOverride,
+      null
+    ),
+    noScreenRendered: getStorageItem<boolean>(
+      STORAGE_KEYS.noScreenRendered,
+      false
+    ),
+    lastError: getStorageItem<FetchError | null>(STORAGE_KEYS.lastError, null),
   };
 }
 
@@ -125,6 +176,18 @@ export function updateState(updates: Partial<TrmnlState>): TrmnlState {
   if (updates.retryAfter !== undefined) {
     setStorageItem(STORAGE_KEYS.retryAfter, updates.retryAfter);
   }
+  if (updates.advancePlaylist !== undefined) {
+    setStorageItem(STORAGE_KEYS.advancePlaylist, updates.advancePlaylist);
+  }
+  if (updates.refreshOverride !== undefined) {
+    setStorageItem(STORAGE_KEYS.refreshOverride, updates.refreshOverride);
+  }
+  if (updates.noScreenRendered !== undefined) {
+    setStorageItem(STORAGE_KEYS.noScreenRendered, updates.noScreenRendered);
+  }
+  if (updates.lastError !== undefined) {
+    setStorageItem(STORAGE_KEYS.lastError, updates.lastError);
+  }
   return getState();
 }
 
@@ -140,68 +203,10 @@ function getBaseUrl(environment: Environment): string {
   return HOSTS[environment] || HOSTS.production;
 }
 
-export function getDevicesUrl(environment: Environment): string {
-  return `${getBaseUrl(environment)}/devices.json`;
-}
-
+// The read-only endpoint: returns the device's current screen without
+// advancing its playlist.
 export function getApiUrl(environment: Environment): string {
   return `${getBaseUrl(environment)}/api/current_screen`;
-}
-
-export function getLoginUrl(environment: Environment): string {
-  return `${getBaseUrl(environment)}/login`;
-}
-
-// Fetch devices from TRMNL API
-// Note: This requires the user to be logged in to usetrmnl.com in the same browser
-// for cookie-based authentication to work
-export async function fetchDevices(
-  environment: Environment
-): Promise<Device[] | null> {
-  const url = getDevicesUrl(environment);
-  const storedDevices = getStorageItem<Device[]>(STORAGE_KEYS.devices, []);
-
-  try {
-    const response = await fetch(url, {
-      credentials: "include", // Include cookies for authentication
-    });
-
-    if (response.status === 401 || response.status === 403) {
-      console.log("Unauthorized - user needs to log in");
-      if (storedDevices.length > 0) {
-        console.log("Using cached devices");
-        return storedDevices;
-      }
-      return null;
-    }
-
-    if (!response.ok) {
-      if (storedDevices.length > 0) {
-        console.log("Fetch error, using cached devices");
-        return storedDevices;
-      }
-      throw new Error(`HTTP error: ${response.status}`);
-    }
-
-    const devices: Device[] = await response.json();
-
-    // Store the devices
-    updateState({ devices });
-
-    // Auto-select first device if none selected
-    const state = getState();
-    if (!state.selectedDevice && devices.length > 0) {
-      updateState({ selectedDevice: devices[0] });
-    }
-
-    return devices;
-  } catch (error) {
-    console.error("Error fetching devices:", error);
-    if (storedDevices.length > 0) {
-      return storedDevices;
-    }
-    return null;
-  }
 }
 
 // Convert blob to data URL
@@ -214,7 +219,8 @@ async function blobToDataUrl(blob: Blob): Promise<string> {
   });
 }
 
-// Fetch the next screen image (triggers screen update on device)
+// Fetch the next screen image. This advances the device's playlist, so the
+// real device will skip past whatever we consume here.
 export async function fetchNextScreen(): Promise<string | null> {
   const state = getState();
   const { environment, selectedDevice, retryAfter, retryCount } = state;
@@ -245,7 +251,11 @@ export async function fetchNextScreen(): Promise<string | null> {
 
     if (response.status === 401 || response.status === 403) {
       console.log("API key unauthorized");
-      updateState({ retryCount: 0, retryAfter: null });
+      updateState({
+        retryCount: 0,
+        retryAfter: null,
+        lastError: { kind: "unauthorized", at: Date.now() },
+      });
       return null;
     }
 
@@ -258,6 +268,7 @@ export async function fetchNextScreen(): Promise<string | null> {
       updateState({
         retryCount: newRetryCount,
         retryAfter: retryAfterTime,
+        lastError: { kind: "rate-limited", at: Date.now() },
       });
       return null;
     }
@@ -272,6 +283,10 @@ export async function fetchNextScreen(): Promise<string | null> {
     const refreshRate = data.refresh_rate || DEFAULT_REFRESH_RATE;
     const currentTime = Date.now();
 
+    if (!imageUrl) {
+      throw new Error("No image in /api/display response");
+    }
+
     // Fetch the actual image
     const imageResponse = await fetch(imageUrl);
     if (!imageResponse.ok) {
@@ -281,20 +296,21 @@ export async function fetchNextScreen(): Promise<string | null> {
     const imageBlob = await imageResponse.blob();
     const imageDataUrl = await blobToDataUrl(imageBlob);
 
-    // Calculate next fetch time
-    const nextFetch = currentTime + refreshRate * 1000;
-
-    // Store the image and metadata
+    // Store the image and metadata. We caused this render, so it's current as
+    // of now and there's no server boundary to sync to.
     updateState({
       currentImage: {
         url: imageDataUrl,
         originalUrl: imageUrl,
         filename,
         timestamp: currentTime,
+        renderedAt: currentTime,
       },
       lastFetch: currentTime,
-      nextFetch,
+      nextFetch: currentTime + getEffectiveRefreshRate(refreshRate) * 1000,
       refreshRate,
+      noScreenRendered: false,
+      lastError: null,
       retryCount: 0,
       retryAfter: null,
     });
@@ -310,6 +326,7 @@ export async function fetchNextScreen(): Promise<string | null> {
     updateState({
       retryCount: newRetryCount,
       retryAfter: retryAfterTime,
+      lastError: { kind: "network", at: Date.now() },
     });
     return null;
   }
@@ -355,7 +372,9 @@ export async function triggerSpecialFunction(): Promise<boolean> {
   }
 }
 
-// Fetch the current screen image
+// Fetch the current screen image. Never advances the playlist — if the device
+// has no rendered screen yet, this reports that via `noScreenRendered` and
+// leaves generating one to the user.
 export async function fetchImage(forceRefresh = false): Promise<string | null> {
   const state = getState();
   const { environment, selectedDevice, currentImage, retryAfter, retryCount } =
@@ -374,17 +393,7 @@ export async function fetchImage(forceRefresh = false): Promise<string | null> {
     return null;
   }
 
-  const deviceId = selectedDevice?.id || "unknown";
-  const isFirstSetup = !hasCompletedFirstSetup(deviceId);
-
-  // Use /api/display for first-time setup to generate screen, otherwise use /api/current_screen
-  const API_URL = isFirstSetup
-    ? `${getBaseUrl(environment)}/api/display`
-    : getApiUrl(environment);
-
-  console.log(
-    `Fetching image for device ${deviceId} (first setup: ${isFirstSetup})`
-  );
+  const API_URL = getApiUrl(environment);
 
   try {
     // Fetch the current screen metadata
@@ -397,8 +406,12 @@ export async function fetchImage(forceRefresh = false): Promise<string | null> {
 
     if (response.status === 401 || response.status === 403) {
       console.log("API key unauthorized");
-      // Reset retry state
-      updateState({ retryCount: 0, retryAfter: null });
+      // A bad key won't fix itself, so there's nothing to back off for.
+      updateState({
+        retryCount: 0,
+        retryAfter: null,
+        lastError: { kind: "unauthorized", at: Date.now() },
+      });
       return null;
     }
 
@@ -412,6 +425,7 @@ export async function fetchImage(forceRefresh = false): Promise<string | null> {
       updateState({
         retryCount: newRetryCount,
         retryAfter: retryAfterTime,
+        lastError: { kind: "rate-limited", at: Date.now() },
       });
 
       return currentImage?.url || null;
@@ -425,7 +439,36 @@ export async function fetchImage(forceRefresh = false): Promise<string | null> {
     const imageUrl = data.image_url;
     const filename = data.filename || "display.jpg";
     const refreshRate = data.refresh_rate || DEFAULT_REFRESH_RATE;
+    const renderedAt = parseRenderedAt(data.rendered_at);
     const currentTime = Date.now();
+
+    if (renderedAt === null) {
+      // Without this we can't show staleness or sync to the device's own
+      // refresh boundary, so make its absence visible rather than silent.
+      console.warn(
+        "No usable rendered_at in current-screen response; falling back to unsynced polling. Fields:",
+        Object.keys(data),
+        "rendered_at:",
+        data.rendered_at
+      );
+    }
+
+    // A successful response with no image means the device has never rendered
+    // a screen. Keep polling at the normal cadence in case it renders one, but
+    // don't advance the playlist to force it.
+    if (!imageUrl) {
+      console.log("Device has no rendered screen yet");
+      updateState({
+        refreshRate,
+        lastFetch: currentTime,
+        nextFetch: computeNextFetch(currentTime, refreshRate, null),
+        noScreenRendered: true,
+        retryCount: 0,
+        retryAfter: null,
+        lastError: null,
+      });
+      return null;
+    }
 
     // Check if image URL has changed (optimization to skip re-download)
     if (
@@ -434,13 +477,14 @@ export async function fetchImage(forceRefresh = false): Promise<string | null> {
       currentImage.originalUrl === imageUrl
     ) {
       console.log("Image unchanged, updating timestamps only");
-      const nextFetch = currentTime + refreshRate * 1000;
       updateState({
         refreshRate,
+        currentImage: { ...currentImage, renderedAt },
         lastFetch: currentTime,
-        nextFetch,
+        nextFetch: computeNextFetch(currentTime, refreshRate, renderedAt),
         retryCount: 0,
         retryAfter: null,
+        lastError: null,
       });
       return currentImage.url;
     }
@@ -454,9 +498,6 @@ export async function fetchImage(forceRefresh = false): Promise<string | null> {
     const imageBlob = await imageResponse.blob();
     const imageDataUrl = await blobToDataUrl(imageBlob);
 
-    // Calculate next fetch time
-    const nextFetch = currentTime + refreshRate * 1000;
-
     // Store the image and metadata
     updateState({
       currentImage: {
@@ -464,19 +505,16 @@ export async function fetchImage(forceRefresh = false): Promise<string | null> {
         originalUrl: imageUrl,
         filename,
         timestamp: currentTime,
+        renderedAt,
       },
       lastFetch: currentTime,
-      nextFetch,
+      nextFetch: computeNextFetch(currentTime, refreshRate, renderedAt),
       refreshRate,
+      noScreenRendered: false,
+      lastError: null,
       retryCount: 0,
       retryAfter: null,
     });
-
-    // Mark first setup as complete after successful fetch
-    if (isFirstSetup) {
-      markFirstSetupComplete(deviceId);
-      console.log(`First setup completed for device ${deviceId}`);
-    }
 
     return imageDataUrl;
   } catch (error) {
@@ -490,6 +528,7 @@ export async function fetchImage(forceRefresh = false): Promise<string | null> {
     updateState({
       retryCount: newRetryCount,
       retryAfter: retryAfterTime,
+      lastError: { kind: "network", at: Date.now() },
     });
 
     return currentImage?.url || null;
@@ -500,49 +539,122 @@ export async function fetchImage(forceRefresh = false): Promise<string | null> {
 export function selectDevice(device: Device): void {
   updateState({
     selectedDevice: device,
+    noScreenRendered: false,
     retryCount: 0,
     retryAfter: null,
   });
 }
 
-// Set the environment
-export function setEnvironment(environment: Environment): void {
-  updateState({ environment });
+// Toggle whether the refresh timer advances the playlist
+export function setAdvancePlaylist(advancePlaylist: boolean): void {
+  updateState({ advancePlaylist });
 }
 
-// Check if device has completed first setup
-function hasCompletedFirstSetup(deviceId: string): boolean {
-  const firstSetupMap = getStorageItem<Record<string, boolean>>(
-    STORAGE_KEYS.firstSetupComplete,
-    {}
-  );
-  return firstSetupMap[deviceId] === true;
+// Pin the refresh interval, in seconds. 0 or null follows the server.
+export function setRefreshOverride(seconds: number | null): void {
+  updateState({ refreshOverride: seconds ? seconds : null });
 }
 
-// Mark device as having completed first setup
-function markFirstSetupComplete(deviceId: string): void {
-  const firstSetupMap = getStorageItem<Record<string, boolean>>(
-    STORAGE_KEYS.firstSetupComplete,
-    {}
-  );
-  firstSetupMap[deviceId] = true;
-  setStorageItem(STORAGE_KEYS.firstSetupComplete, firstSetupMap);
+// The interval the timer actually uses: the user's pinned value if they set
+// one, otherwise whatever the server asked for.
+export function getEffectiveRefreshRate(serverRate?: number): number {
+  const state = getState();
+  return state.refreshOverride ?? serverRate ?? state.refreshRate;
 }
 
-// Format time remaining for countdown display
-export function formatTimeRemaining(nextFetch: number | null): string {
-  if (!nextFetch) return "Unknown";
+// Parse the server's rendered_at into epoch ms, tolerating absence and junk.
+function parseRenderedAt(value: unknown): number | null {
+  if (typeof value !== "string") return null;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : parsed;
+}
 
-  const remaining = Math.max(0, nextFetch - Date.now());
-  const totalSeconds = Math.floor(remaining / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
+// When to poll next.
+//
+// In mirror mode on Auto, the device's own render boundary is the only moment
+// the screen can change, so aim just past it. Otherwise our cycle sits at an
+// arbitrary offset inside the device's and we're consistently stale by however
+// far apart they happen to start.
+//
+// A pinned interval is taken literally — the user asked for that cadence — and
+// in virtual-device mode we cause the render ourselves, so there's nothing to
+// sync to.
+function computeNextFetch(
+  now: number,
+  serverRate: number,
+  renderedAt: number | null
+): number {
+  const state = getState();
+  const useServerBoundary =
+    !state.advancePlaylist && !state.refreshOverride && renderedAt !== null;
 
-  const pad = (n: number) => n.toString().padStart(2, "0");
-
-  if (hours > 0) {
-    return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+  if (!useServerBoundary) {
+    return now + getEffectiveRefreshRate(serverRate) * 1000;
   }
-  return `${pad(minutes)}:${pad(seconds)}`;
+
+  return Math.max(
+    renderedAt + serverRate * 1000 + SYNC_GRACE_MS,
+    now + MIN_POLL_GAP_MS
+  );
 }
+
+// Coarse countdown for the status line. Refresh rates are measured in minutes,
+// so a ticking seconds display is just motion in the corner of your eye.
+export function formatCountdown(due: number | null): string {
+  if (!due) return "unknown";
+
+  const seconds = Math.max(0, Math.round((due - Date.now()) / 1000));
+  if (seconds < 60) return "<1 min";
+
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min`;
+
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  return remainder ? `${hours}h ${remainder}m` : `${hours}h`;
+}
+
+// How long ago the screen on display was rendered
+export function formatAge(timestamp: number | null): string | null {
+  if (!timestamp) return null;
+
+  const seconds = Math.floor((Date.now() - timestamp) / 1000);
+  if (seconds < 45) return "just now";
+  if (seconds < 5400) return `${Math.round(seconds / 60)} min ago`;
+  const hours = Math.round(seconds / 3600);
+  return hours === 1 ? "1 hr ago" : `${hours} hr ago`;
+}
+
+// User-facing explanation of a failed fetch. Each kind needs a different
+// response, so they don't share a message.
+export function describeFetchError(
+  error: FetchError | null,
+  retryAfter: number | null
+): string | null {
+  if (!error) return null;
+
+  switch (error.kind) {
+    case "unauthorized":
+      return "TRMNL rejected that API key. Check it in Settings.";
+    case "rate-limited": {
+      const wait =
+        retryAfter && retryAfter > Date.now()
+          ? formatCountdown(retryAfter)
+          : null;
+      return wait
+        ? `Rate limited by TRMNL — retrying in ${wait}.`
+        : "Rate limited by TRMNL — retrying shortly.";
+    }
+    case "network":
+      return "Couldn't reach TRMNL. Check your connection.";
+  }
+}
+
+// Human label for an interval, used by the settings slider
+export function formatInterval(seconds: number): string {
+  if (!seconds) return "Auto";
+  if (seconds < 60) return `${seconds}s`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)} min`;
+  return `${Math.round(seconds / 3600)} hr`;
+}
+

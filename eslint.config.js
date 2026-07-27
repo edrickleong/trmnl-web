@@ -6,7 +6,20 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // Vendored Fluid Functionalism registry code — installed via the shadcn CLI
+  // and re-fetched on update, so we don't lint or hand-edit it.
+  globalIgnores([
+    'dist',
+    'src/components/ui/**',
+    'src/hooks/use-proximity-hover.ts',
+    'src/lib/elevated.tsx',
+    'src/lib/font-weight.ts',
+    'src/lib/icon-context.tsx',
+    'src/lib/shape-context.tsx',
+    'src/lib/springs.ts',
+    'src/lib/surface-classes.ts',
+    'src/lib/surface-context.tsx',
+  ]),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
